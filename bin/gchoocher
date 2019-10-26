@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+#
+#set -x
+#
+###################
+_url=https://api.github.com
+_options=(
+	-Ss
+	-H "Authorization: token $GCHOOCH_TOKEN"
+)
+###################
+usage () {
+	cat <<-EOF >&2
+This script will send data to a GitHub GIST and return a link to said GIST.  It will either read from
+STDIN or from a file provided as an option to the -F argument.
+
+Usage:	$(basename "$0") -F /var/tmp/data.txt -d "Data what for analysis" -v false -f data.txt
+			 	$(basename "$0") [-h] [-F FILE] [-d DESCRIPTION] [-f FILENAME] [-v true|false]
+
+	-h	Print usage.
+	-d	(OPTIONAL) Sets GIST description.
+	-f	(OPTIONAL) Sets GIST filename.
+	-F	(OPTIONAL) File to read from.  If no file is specified $(basename "$0") will read from STDIN.
+	-v	(OPTIONAL) Whether the GIST will be public or not.  Takes a boolean value.
+	EOF
+	exit 2
+}
+call_api () (
+	local uri=$1
+	shift
+	local opts=("$@")
+	_options+=( "${opts[@]}" )
+	curl "${_options[@]}" "${_url}${uri}"
+)
+is_boolean () {
+	local i=$1
+	if [[ "$i" == 'true' || "$i" == 'false' ]]; then
+		return 0
+	else
+		return 1
+	fi
+}
+is_file () {
+	local i=$1
+	if [[ -f "$i" ]]; then
+		input=$(cat "$i")
+		return 0
+	else
+		return 1
+	fi
+}
+choochify () {
+	local data=$1
+	jq -R -s '.' <<<"$data"
+}
+post_gist () {
+	local content=$@
+	local json_content
+	read -rd '' json_content <<-EOJSON
+	{
+		"description": "$_description",
+		"public": ${_visibility:-false},
+		"files": {
+			"${_filename:-file1.txt}": {
+				"content": $_content
+			}
+		}
+	}
+	EOJSON
+	call_api /gists -X POST -d "$json_content"
+}
+###################
+if [[ ! -t 0 ]]; then
+	input=$(</dev/stdin)
+fi 
+###################
+while getopts d:v:f:hF: opt; do
+	case $opt in
+		d)	_description=$OPTARG;;
+		v)	_visibility=$OPTARG; is_boolean "$_visibility" || exit 1;;
+		f)	_filename=$OPTARG;;
+		F)	_file=$OPTARG; is_file "$_file" || exit 1;;
+		h)	usage;;
+	esac
+done
+###################
+_content=$(choochify "$input")
+post_gist "$_content" | jq -r '.html_url'
