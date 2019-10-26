@@ -77,12 +77,13 @@ fi
 while getopts d:v:f:hF: opt; do
 	case $opt in
 		d)	_description=$OPTARG;;
-		v)	_visibility=$OPTARG; is_boolean "$_visibility" || exit 1;;
+		v)	_visibility=$OPTARG; is_boolean "$_visibility" || usage;;
 		f)	_filename=$OPTARG;;
-		F)	_file=$OPTARG; is_file "$_file" || exit 1;;
+		F)	_file=$OPTARG; is_file "$_file" || usage;;
 		h)	usage;;
 	esac
 done
 ###################
 _content=$(choochify "$input")
-post_gist "$_content" | jq -r '.html_url'
+post_gist "$_content" | jq -r '.html_url' | pbcopy
+pbpaste
